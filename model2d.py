@@ -200,6 +200,7 @@ class model2d(object):
         inZ     = InArr[:,2]
         self.mask = ~self.mask
         for i in xrange(inlon.size):
+            if i%10000==0: print i
             lon=inlon[i]
             if lon < 0: lon+=360
             lat=inlat[i]
@@ -207,6 +208,26 @@ class model2d(object):
             if inZ[i]==0 or math.isnan(inZ[i]): continue
             self.mask[index[0], index[1]]=False
             self.Zarr[index[0], index[1]]=inZ[i]
+        return
+    
+    def read_numpy_txt(self, infname):
+        """
+        Read txt velocity model file
+        """
+        InArr   = np.loadtxt(infname)
+        inlon   = InArr[:,0]
+        inlat   = InArr[:,1]
+        inZ     = InArr[:,2]
+        # self.mask = ~self.mask
+        self.Zarr=inZ.reshape(self.lonArr.shape)[::-1,:]
+        self.mask[np.isnan(self.Zarr)]=1
+        # if (np.array_equal(inlon.reshape(self.lonArr.shape), self.lonArr) and np.array_equal(inlat.reshape(self.lonArr.shape)[::-1,:], self.latArr)):
+        #     self.Zarr=inZ.reshape(self.lonArr.shape)[::-1,:]
+        #     self.mask[self.Zarr==np.nan]=1
+        # else:
+        #     print 'error!'
+        # elif (np.array_equal(inlon.reshape(self.lonArr.shape), self.lonArr) and np.array_equal(inlat.reshape(self.lonArr.shape), self.latArr)):
+            
         return
     
     def save(self, outfname):
@@ -301,29 +322,31 @@ class model2d(object):
         self.Zarr=z_filtered
         return
     
-    def hist(self, vmin=-0.2, vmax=0.2, label='', unit='(km/sec)'):
+    def hist(self, vmin=-0.2, vmax=0.2, dv=0.05, label='', unit='(km/sec)', showfig=True):
         from matplotlib.ticker import FuncFormatter
         ax=plt.subplot()
         valid_data = self.Zarr[(~self.mask)]
         # the histogram of the data
         # n, bins, patches = plt.hist(valid_data, bins=50, normed=1, facecolor='red', alpha=0.75,
         #                             weights=np.zeros_like(valid_data) + 100. / valid_data.size)
-        n, bins, patches = plt.hist(valid_data, bins=100, facecolor='red', alpha=0.75,
-                                    weights=np.zeros_like(valid_data) + 100. / valid_data.size)
+        n, bins, patches = plt.hist(valid_data, bins=50, facecolor='red', alpha=0.75,
+                                    weights=np.zeros_like(valid_data) + 100. / valid_data.size, ec='none')
         plt.ylabel('percentage (%)', fontsize=15)
         plt.xlabel(label+unit, fontsize=15)
         # plt.title(r'$\mathrm{Histogram\ of\ IQ:}\ \mu=100,\ \sigma=15$')
         maxvalue = max(valid_data.max(), - valid_data.min())
         if vmin==None or vmax==None: vmin=-maxvalue; vmax=maxvalue
-        plt.xlim([vmin-0.001, vmax+0.001])
+        plt.xlim([vmin-0.0001, vmax+0.0001])
         # plt.ylim([0, 50])
         plt.grid(True)
         ax.tick_params(axis='x', labelsize=15)
         ax.tick_params(axis='y', labelsize=15)
-        plt.show()
+        ax.set_xticks(np.arange(vmin, vmax+0.0001, dv))
+        if showfig: plt.show()
+        return
         
 
-    def plot(self, label='', unit='(km/sec)', projection='lambert', cmap='cv', contour=False, geopolygons=None, showfig=True, vmin=None, vmax=None):
+    def plot(self, label='', unit='(km/sec)', projection='lambert', cmap='cv', contour=False, geopolygons=None, showfig=True, vmin=None, vmax=None, dv=0.1):
         """
         """
         
@@ -334,12 +357,13 @@ class model2d(object):
         elif cmap == 'cv':
             try: cmap=pycpt.load.gmtColormap('cv.cpt')
             except: cmap = colors.get_colormap('tomo_80_perc_linear_lightness')
-        elif cmap=='seismic':
+        elif cmap=='seismic_r':
             import matplotlib.cm
-            cmap=matplotlib.cm.seismic
+            cmap=matplotlib.cm.seismic_r
+            # cmap =discrete_cmap(int((vmax-vmin)/0.05), cmap)
         elif cmap=='bwr':
             cmap='bwr'
-            cmap =discrete_cmap(int(vmax-vmin)/2, cmap)
+            # cmap =discrete_cmap(int((vmax-vmin)/0.05), cmap)
         cmap.set_bad('0.8',0.)
         im=m.pcolormesh(x, y, self.Zarr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         #############################################################
@@ -360,8 +384,8 @@ class model2d(object):
         # except:
         try:
             # vrange=vmin+np.arange((vmax-vmin)/0.02+1)*0.02
-            # vrange=vmin+np.arange((vmax-vmin)/0.05+1)*0.05
-            vrange=vmin+np.arange((vmax-vmin)/0.1+1)*0.1
+            vrange=vmin+np.arange((vmax-vmin)/dv+1)*dv
+            # vrange=vmin+np.arange((vmax-vmin)/0.1+1)*0.1
             cb = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=vrange)
         except:
             cb = m.colorbar(im, "bottom", size="3%", pad='2%')
